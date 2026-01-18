@@ -43,36 +43,46 @@ You should download your model locally using for example React Native File Syste
 ```js
 import { ArViewerView } from "react-native-ar-viewer";
 import { Platform } from 'react-native';
-// ...
 
-<ArViewerView 
-    style={{flex: 1}}
-    model={Platform.OS === 'android' ? 'dice.glb' : 'dice.usdz'}
-    lightEstimation
-    manageDepth
-    allowRotate
-    allowScale
-    allowTranslate
-    disableInstantPlacement
-    onStarted={() => console.log('started')}
-    onEnded={() => console.log('ended')}
-    onModelPlaced={() => console.log('model displayed')}
-    onModelRemoved={() => console.log('model not visible anymore')}
-    planeOrientation="both" />
+function App() {
+  const ref = React.useRef() as React.MutableRefObject<ArViewerView>;
+
+  const load = () => {
+    ref.current?.loadModel();
+  };
+
+  return (
+    <ArViewerView
+      ref={ref}
+      style={{ flex: 1 }}
+      model={Platform.OS === 'android' ? 'dice.glb' : 'dice.usdz'}
+      lightEstimation
+      manageDepth
+      allowRotate
+      allowScale
+      allowTranslate
+      onStarted={() => console.log('started')}
+      onEnded={() => console.log('ended')}
+      onModelPlaced={() => console.log('model displayed')}
+      onModelRemoved={() => console.log('model not visible anymore')}
+      onUserTap={(event) => console.log('User Tapped', event.nativeEvent)}
+      planeOrientation="both"
+    />
+  );
+}
 ```
 
 ### Props
 
 | Prop | Type | Description | Required |
 |---|---|---|---|
-| `model`| `string` | Enables ambient light estimation (see below) | Yes |
+| `model`| `string` | Path to the model file (URL or local) | Yes |
 | `lightEstimation`| `bool` | Enables ambient light estimation (see below) | No |
 | `manageDepth` | `bool` | Enables depth estimation and occlusion (only iOS, see below) | No |
 | `allowRotate` | `bool` | Allows to rotate model | No |
 | `allowScale` | `bool` | Allows to scale model | No |
 | `allowTranslate` | `bool` | Allows to translate model | No |
 | `disableInstructions` | `bool` | Disables instructions view | No |
-| `disableInstantPlacement` | `bool` | Disables placement on load | No |
 | `planeOrientation` | `"horizontal"`, `"vertical"`, `"both"` or `"none"` | Sets plane orientation (default: `both`) | No |
 
 #### lightEstimation:
@@ -101,6 +111,7 @@ import { Platform } from 'react-native';
 | `onEnded` | `none` | Triggers on AR session ended |
 | `onModelPlaced` | `none` | Triggers when model is placed |
 | `onModelRemoved` | `none` | Triggers when model is removed |
+| `onUserTap` | `{ coordinates: { x: number, y: number } }` | Triggers when user taps on the AR view |
 | `onError` | `{ message: string }` | Triggers on any error and returns an object containing the error message |
 
 ### Commands
@@ -126,7 +137,12 @@ Commands are sent using refs like the following example:
 | Command | Args | Return | Description |
 |---|---|---|---|
 | `reset()` | `none` | `void` | Removes model from plane |
-| `rotate()` | `x, y, z` | `void` | Manually rotates the model using `yaw as x`, `pitch as y` and `roll as z` in degrees |
+| `rotate()` | `pitch, yaw, roll` | `void` | Manually rotates the model using `pitch`, `yaw` and `roll` in degrees |
+| `loadModel()` | `none` | `void` | Loads the model manually |
+| `placeModel()` | `x, y, z` | `void` | Places the model at the specified coordinates |
+| `placeText()` | `x, y, z, color, text` | `void` | Places text at the specified coordinates |
+| `getPositionVector3()` | `x, y` | `Promise<PositionVector3>` | Returns the 3D position vector from 2D screen coordinates |
+| `createLineAndGetDistance()` | `pos1, pos2, color` | `Promise<string>` | Creates a line between two positions and returns the distance |
 | `takeScreenshot()` | `none` | `Promise<String>` | Takes a screenshot of the current view (camera + model) and returns a base64 jpeg string as a promise |
 
 ## Contributing
