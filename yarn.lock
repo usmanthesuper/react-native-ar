@@ -10518,12 +10518,12 @@ __metadata:
   languageName: node
   linkType: hard
 
-"pod-install@npm:^0.1.36":
-  version: 0.1.39
-  resolution: "pod-install@npm:0.1.39"
+"pod-install@npm:^1.0.9":
+  version: 1.0.9
+  resolution: "pod-install@npm:1.0.9"
   bin:
     pod-install: build/index.js
-  checksum: 10c0/fc5d88a13b6bd58cb9c6336ae0d068f5b7c54d8449f649dd080672583caf701f48bce49a878705ef166b879aaa0068f0a1782061f4cb85c67fff7008dd4ae5fd
+  checksum: 10c0/f80f5759ab75af63a499dffd5369e8962c7ac3f11b7d02ba8a02c753da9584cbfe90f9934b186f6e66b7c8f5dcd3cf3316a92878742f0d8878946e50e2586dc3
   languageName: node
   linkType: hard
 
@@ -10823,7 +10823,7 @@ __metadata:
     eslint-plugin-prettier: "npm:^4.2.1"
     husky: "npm:^8.0.1"
     jest: "npm:^29.3.1"
-    pod-install: "npm:^0.1.36"
+    pod-install: "npm:^1.0.9"
     prettier: "npm:^2.0.5"
     react: "npm:18.2.0"
     react-native: "npm:0.71.4"
