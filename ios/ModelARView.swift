@@ -119,6 +119,8 @@ class ModelARView: ARView, ARSessionDelegate {
         isModelVisible = false
         setGestures()
         safelyResetArrowAnchors()
+        self.scene.anchors.removeAll()
+        
     }
     
     /// Start or update the AR session
@@ -168,43 +170,94 @@ class ModelARView: ARView, ARSessionDelegate {
     
     
     func takeSnapshot(requestId: Int) {
-        snapshot(saveToHDR: false) { (image) in
-            guard let image = image else {
-                self.onErrorHandler?(["message": "Failed to capture snapshot"])
-                return
+        guard let currentFrame = self.session.currentFrame else { return }
+        
+        
+    //    savedTransform = currentFrame.camera.transform
+        
+        // Extract the image from the frame
+        let pixelBuffer = currentFrame.capturedImage
+        
+        let imageSize = CGSize(width: CVPixelBufferGetWidth(pixelBuffer), height: CVPixelBufferGetHeight(pixelBuffer))
+        let viewPort = self.bounds
+        let viewPortSize = self.bounds.size
+        
+        let interfaceOrientation: UIInterfaceOrientation
+
+        if #available(iOS 13.0, *) {
+          if let windowScene = UIApplication.shared.connectedScenes.first as? UIWindowScene {
+              interfaceOrientation = windowScene.interfaceOrientation
+              print("Current orientation: \(interfaceOrientation.rawValue)")
+          } else {
+            interfaceOrientation = self.window!.windowScene!.interfaceOrientation
+            print("interfaceOrientation \(interfaceOrientation.rawValue)")
+          }
+        } else {
+          interfaceOrientation = UIApplication.shared.statusBarOrientation
+        }
+        
+        let image = CIImage(cvImageBuffer: pixelBuffer)
+        
+        // Transform the image:
+        // 1) Convert to "normalized image coordinates"
+        let normalizeTransform = CGAffineTransform(scaleX: 1.0/imageSize.width, y: 1.0/imageSize.height)
+        
+        // 2) Flip the Y axis (for portrait mode)
+        let flipTransform = (interfaceOrientation.isPortrait) ?
+        CGAffineTransform(scaleX: -1, y: -1).translatedBy(x: -1, y: -1) : .identity
+        
+        // 3) Apply the ARFrame display transform
+        let displayTransform = currentFrame.displayTransform(for: interfaceOrientation, viewportSize: viewPortSize)
+        
+        // 4) Convert to view size
+        let toViewPortTransform = CGAffineTransform(scaleX: viewPortSize.width, y: viewPortSize.height)
+        
+        // Transform the image and crop it to the viewport
+        let transformedImage = image
+          .transformed(by: normalizeTransform
+            .concatenating(flipTransform)
+            .concatenating(displayTransform)
+            .concatenating(toViewPortTransform))
+          .cropped(to: viewPort)
+        
+        let context = CIContext()
+
+        guard let cgImage = context.createCGImage(transformedImage, from: transformedImage.extent) else {
+            self.onErrorHandler?(["message": "Failed to save snapshot"])
+            return
+        }
+        
+        let fileName = "snapshot_\(requestId)_\(Date().timeIntervalSince1970).jpg"
+        
+        // Get the temporary directory (or documents directory)
+        let tempDir = FileManager.default.temporaryDirectory
+        let fileURL = tempDir.appendingPathComponent(fileName)
+        
+        let uiImage = UIImage(cgImage: cgImage)
+
+        guard let data = uiImage.pngData() else {
+            self.onErrorHandler?(["message": "Failed to save snapshot"])
+            return
+        }
+
+        
+        
+        do {
+            try data.write(to: fileURL)
+            print("Saved at:", fileURL)
+            
+            let fileURI = fileURL.absoluteString
+            
+            // Return the URI to React Native
+            if let handler = self.onDataReturnedHandler {
+                handler([
+                    "requestId": requestId,
+                    "result": fileURI,  // file:///.../snapshot_123_1234567890.jpg
+                    "error": ""
+                ])
             }
-            
-            // Convert to JPEG data
-            guard let imageData = image.jpegData(compressionQuality: 0.9) else {
-                self.onErrorHandler?(["message": "Failed to convert image to JPEG"])
-                return
-            }
-            
-            // Create a unique filename
-            let fileName = "snapshot_\(requestId)_\(Date().timeIntervalSince1970).jpg"
-            
-            // Get the temporary directory (or documents directory)
-            let tempDir = FileManager.default.temporaryDirectory
-            let fileURL = tempDir.appendingPathComponent(fileName)
-            
-            do {
-                // Write image data to file
-                try imageData.write(to: fileURL)
-                
-                // Get the file URI (file:// path)
-                let fileURI = fileURL.absoluteString
-                
-                // Return the URI to React Native
-                if let handler = self.onDataReturnedHandler {
-                    handler([
-                        "requestId": requestId,
-                        "result": fileURI,  // file:///.../snapshot_123_1234567890.jpg
-                        "error": ""
-                    ])
-                }
-            } catch {
-                self.onErrorHandler?(["message": "Failed to save snapshot: \(error.localizedDescription)"])
-            }
+        } catch {
+            self.onErrorHandler?(["message": "Failed to save snapshot: \(error.localizedDescription)"])
         }
     }
     
