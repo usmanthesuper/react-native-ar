@@ -4,6 +4,7 @@ import android.app.Activity
 import android.app.ActivityManager
 import android.content.Context
 import android.graphics.Bitmap
+import android.graphics.Color
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
@@ -12,11 +13,13 @@ import android.util.Base64
 import android.util.Log
 import android.view.GestureDetector
 import android.view.GestureDetector.SimpleOnGestureListener
+import android.view.Gravity
 import android.view.MotionEvent
 import android.view.PixelCopy
 import android.view.ViewGroup
 import android.view.ViewTreeObserver.OnWindowFocusChangeListener
 import android.widget.FrameLayout
+import android.widget.TextView
 import com.facebook.react.bridge.Arguments
 import com.facebook.react.uimanager.ThemedReactContext
 import com.facebook.react.uimanager.events.RCTEventEmitter
@@ -29,12 +32,15 @@ import com.google.ar.sceneform.math.Quaternion
 import com.google.ar.sceneform.math.Vector3
 import com.google.ar.sceneform.rendering.CameraStream
 import com.google.ar.sceneform.rendering.ModelRenderable
+import com.google.ar.sceneform.rendering.ViewRenderable
 import com.google.ar.sceneform.ux.BaseArFragment.OnSessionConfigurationListener
 import com.google.ar.sceneform.ux.FootprintSelectionVisualizer
 import com.google.ar.sceneform.ux.TransformableNode
 import com.google.ar.sceneform.ux.TransformationSystem
+import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.util.*
+import kotlin.math.sqrt
 
 
 class ArViewerView @JvmOverloads constructor(
@@ -325,35 +331,22 @@ class ArViewerView @JvmOverloads constructor(
   }
 
   fun onSingleTap(motionEvent: MotionEvent?) {
-    if (arView != null) {
-      val frame: Frame? = arView!!.arFrame
-      transformationSystem?.selectNode(null)
+    if (arView != null && motionEvent != null) {
+      // Fire onUserTap event with screen coordinates
+      val event = Arguments.createMap()
+      val coordinates = Arguments.createMap()
+      coordinates.putDouble("x", motionEvent.x.toDouble())
+      coordinates.putDouble("y", motionEvent.y.toDouble())
+      event.putMap("coordinates", coordinates)
 
-      if (frame != null) {
-        if (motionEvent != null && frame.camera.trackingState === TrackingState.TRACKING) {
-          for (hitResult in frame.hitTest(motionEvent)) {
-            val trackable = hitResult.trackable
-            if (trackable is Plane && trackable.isPoseInPolygon(hitResult.hitPose) && modelNode != null) {
-              // Remove old anchor (if any)
-              var modelAlreadyAttached = false
-              if (modelNode?.parent is AnchorNode) {
-                (modelNode!!.parent as AnchorNode).anchor?.detach()
-                modelAlreadyAttached = true
-              }
+      val reactContext = context as ThemedReactContext
+      reactContext.getJSModule(RCTEventEmitter::class.java).receiveEvent(
+        id,
+        "onUserTap",
+        event
+      )
 
-              // Create the Anchor
-              val anchor: Anchor = arView!!.session!!.createAnchor(hitResult.hitPose)
-              initAnchorNode(anchor)
-
-              // tells JS that the model is visible
-              if (!modelAlreadyAttached) {
-                onModelPlaced()
-              }
-              break
-            }
-          }
-        }
-      }
+      Log.d("ARview onUserTap", "Tap at x=${motionEvent.x}, y=${motionEvent.y}")
     }
   }
 
@@ -674,6 +667,230 @@ class ArViewerView @JvmOverloads constructor(
       return false
     }
     return true
+  }
+
+  /**
+   * Manually load the model (wrapper for existing loadModel function)
+   */
+  fun loadModelManually() {
+    Log.d("ARview loadModelManually", "Loading model: $modelSrc")
+    if (modelSrc.isNotEmpty()) {
+      loadModel(modelSrc)
+    } else {
+      returnErrorEvent("No model source specified")
+    }
+  }
+
+  /**
+   * Place model at specific 3D coordinates
+   */
+  fun placeModelAtPosition(x: Float, y: Float, z: Float) {
+    Log.d("ARview placeModel", "Placing model at: x=$x, y=$y, z=$z")
+    if (modelNode == null) {
+      returnErrorEvent("No model loaded to place")
+      return
+    }
+
+    try {
+      // Create pose at specified position
+      val pose = Pose(floatArrayOf(x, y, z), floatArrayOf(0f, 0f, 0f, 1f))
+
+      // Create anchor at that pose
+      val anchor = arView!!.session!!.createAnchor(pose)
+
+      // Attach model to anchor
+      initAnchorNode(anchor)
+
+      // Notify JS that model was placed
+      onModelPlaced()
+    } catch (e: Exception) {
+      Log.e("ARview placeModel", "Error placing model: ${e.message}")
+      returnErrorEvent("Failed to place model: ${e.message}")
+    }
+  }
+
+  /**
+   * Place 3D text at specified coordinates
+   */
+  fun placeText(x: Float, y: Float, z: Float, color: String, text: String) {
+    Log.d("ARview placeText", "Placing text '$text' at: x=$x, y=$y, z=$z, color=$color")
+
+    try {
+      val parsedColor = parseHexColor(color)
+
+      // Create TextView
+      ViewRenderable.builder()
+        .setView(context, android.R.layout.simple_list_item_1)
+        .build()
+        .thenAccept { renderable ->
+          // Configure the TextView
+          val textView = renderable.view as TextView
+          textView.text = text
+          textView.setTextColor(parsedColor)
+          textView.gravity = Gravity.CENTER
+          textView.textSize = 4f
+          textView.setBackgroundColor(Color.TRANSPARENT)
+
+          // Create pose at specified position
+          val pose = Pose(floatArrayOf(x, y, z), floatArrayOf(0f, 0f, 0f, 1f))
+
+          // Create anchor
+          val anchor = arView!!.session!!.createAnchor(pose)
+          val anchorNode = AnchorNode(anchor)
+          anchorNode.parent = arView!!.scene
+
+          // Create node for text
+          val textNode = Node()
+          textNode.parent = anchorNode
+          textNode.renderable = renderable
+          textNode.localPosition = Vector3(0f, 0f, 0f)
+
+          Log.d("ARview placeText", "Text placed successfully")
+        }
+        .exceptionally { throwable ->
+          Log.e("ARview placeText", "Error creating text: ${throwable.message}")
+          returnErrorEvent("Failed to create text: ${throwable.message}")
+          null
+        }
+    } catch (e: Exception) {
+      Log.e("ARview placeText", "Error: ${e.message}")
+      returnErrorEvent("Failed to place text: ${e.message}")
+    }
+  }
+
+  /**
+   * Get 3D world position from 2D screen coordinates
+   */
+  fun getPositionVector3(x: Float, y: Float, requestId: Int) {
+    Log.d("ARview getPositionVector3", "Getting position for screen coords: x=$x, y=$y")
+
+    try {
+      val frame = arView?.arFrame
+      if (frame == null) {
+        returnDataEvent(requestId, null, "AR frame not available")
+        return
+      }
+
+      // Perform hit test at screen coordinates
+      val hits = frame.hitTest(x, y)
+
+      if (hits.isNotEmpty()) {
+        val hit = hits[0]
+        val pose = hit.hitPose
+
+        // Create JSON with x, y, z coordinates
+        val json = JSONObject()
+        json.put("x", pose.tx().toDouble())
+        json.put("y", pose.ty().toDouble())
+        json.put("z", pose.tz().toDouble())
+        Log.d("ARview getPositionVector3", "Position: ${json.toString()}")
+        returnDataEvent(requestId, json.toString(), null)
+      } else {
+        returnDataEvent(requestId, null, "No surface detected at screen point")
+      }
+    } catch (e: Exception) {
+      Log.e("ARview getPositionVector3", "Error: ${e.message}")
+      returnDataEvent(requestId, null, "Failed to get position: ${e.message}")
+    }
+  }
+
+  /**
+   * Create a line between two points and return the distance
+   */
+  fun createLineAndGetDistance(
+    x1: Float, y1: Float, z1: Float,
+    x2: Float, y2: Float, z2: Float,
+    color: String, requestId: Int
+  ) {
+    Log.d("ARview createLine", "Creating line from ($x1,$y1,$z1) to ($x2,$y2,$z2)")
+
+    try {
+      val start = Vector3(x1, y1, z1)
+      val end = Vector3(x2, y2, z2)
+      val parsedColor = parseHexColor(color)
+
+      // Calculate distance
+      val dx = x2 - x1
+      val dy = y2 - y1
+      val dz = z2 - z1
+      val distance = sqrt(dx * dx + dy * dy + dz * dz)
+
+      // Format distance (convert to cm or m)
+      val distanceText = if (distance < 1.0f) {
+        String.format("%.1f cm", distance * 100)
+      } else {
+        String.format("%.2f m", distance)
+      }
+
+      // Create line geometry
+      createLineBetweenPoints(start, end, parsedColor)
+
+      Log.d("ARview createLine", "Distance: $distanceText")
+      returnDataEvent(requestId, distanceText, null)
+    } catch (e: Exception) {
+      Log.e("ARview createLine", "Error: ${e.message}")
+      returnDataEvent(requestId, null, "Failed to create line: ${e.message}")
+    }
+  }
+
+  /**
+   * Helper: Parse hex color string to Android Color int
+   */
+  private fun parseHexColor(hex: String): Int {
+    return try {
+      var colorString = hex.trim()
+      if (!colorString.startsWith("#")) {
+        colorString = "#$colorString"
+      }
+      Color.parseColor(colorString)
+    } catch (e: Exception) {
+      Log.w("ARview parseColor", "Invalid color '$hex', using white")
+      Color.WHITE
+    }
+  }
+
+  /**
+   * Helper: Create a line (cylinder) between two points
+   */
+  private fun createLineBetweenPoints(start: Vector3, end: Vector3, color: Int) {
+    try {
+      // Calculate midpoint
+      val midpoint = Vector3.add(start, end).scaled(0.5f)
+
+      // Calculate distance for cylinder height
+      val distance = Vector3.subtract(end, start).length()
+
+      // Create cylinder shape
+      ModelRenderable.builder()
+        .setSource(context, Uri.parse("https://raw.githubusercontent.com/KhronosGroup/glTF-Sample-Models/master/2.0/Box/glTF/Box.gltf"))
+        .build()
+        .thenAccept { renderable ->
+          // Create node for line
+          val lineNode = Node()
+          lineNode.parent = arView!!.scene
+          lineNode.worldPosition = midpoint
+
+          // Scale to make it a thin line
+          lineNode.localScale = Vector3(0.005f, distance / 2, 0.005f)
+
+          // Rotate to point from start to end
+          val direction = Vector3.subtract(end, start).normalized()
+          val up = Vector3.up()
+          val rotation = Quaternion.lookRotation(direction, up)
+          lineNode.localRotation = rotation
+
+          lineNode.renderable = renderable
+
+          // Apply color (this is simplified - proper material coloring would be more complex)
+          Log.d("ARview createLine", "Line created")
+        }
+        .exceptionally { throwable ->
+          Log.e("ARview createLine", "Error creating line geometry: ${throwable.message}")
+          null
+        }
+    } catch (e: Exception) {
+      Log.e("ARview createLine", "Error: ${e.message}")
+    }
   }
 }
 

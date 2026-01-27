@@ -10,7 +10,7 @@ import {
 import { ArViewerView } from 'react-native-ar-viewer';
 import RNFS from 'react-native-fs';
 
-export default function App() {
+export default function Test() {
   const [localModelPath, setLocalModelPath] = React.useState<string>();
   const [showArView, setShowArView] = React.useState(true);
   const ref = React.useRef() as React.MutableRefObject<ArViewerView>;
@@ -18,10 +18,11 @@ export default function App() {
   const loadPath = async () => {
     const modelSrc =
       Platform.OS === 'android'
-        ? 'https://github.com/usmanthesuper/react-native-ar/blob/master/example/src/arrow.glb?raw=true'
-        : 'https://github.com/usmanthesuper/react-native-ar/blob/master/example/src/arrow.usdz?raw=true';
-    const modelPath = `${RNFS.DocumentDirectoryPath}/model.${Platform.OS === 'android' ? 'glb' : 'usdz'
-      }`;
+        ? 'https://github.com/riderodd/react-native-ar/blob/main/example/src/dice.glb?raw=true'
+        : 'https://github.com/riderodd/react-native-ar/blob/main/example/src/dice.usdz?raw=true';
+    const modelPath = `${RNFS.DocumentDirectoryPath}/model.${
+      Platform.OS === 'android' ? 'glb' : 'usdz'
+    }`;
     const exists = await RNFS.exists(modelPath);
     if (!exists) {
       await RNFS.downloadFile({
@@ -40,8 +41,9 @@ export default function App() {
   const takeSnapshot = () => {
     ref.current?.takeScreenshot().then(async (base64Image) => {
       const date = new Date();
-      const filePath = `${RNFS.CachesDirectoryPath
-        }/arscreenshot-${date.getFullYear()}-${date.getMonth()}-${date.getDay()}-${date.getHours()}-${date.getMinutes()}-${date.getSeconds()}.jpg`;
+      const filePath = `${
+        RNFS.CachesDirectoryPath
+      }/arscreenshot-${date.getFullYear()}-${date.getMonth()}-${date.getDay()}-${date.getHours()}-${date.getMinutes()}-${date.getSeconds()}.jpg`;
       await RNFS.writeFile(filePath, base64Image, 'base64');
       console.log('Screenshot written to ' + filePath);
     });
@@ -73,36 +75,31 @@ export default function App() {
           onModelPlaced={() => console.log('model displayed')}
           onModelRemoved={() => console.log('model not visible anymore')}
           ref={ref}
-          //@ts-ignore
           onUserTap={async (e) => {
-
-            console.log('tap coordinates:', e?.nativeEvent)
-            const coords = e?.nativeEvent.coordinates;
-            try {
-              let worldPosition = await ref?.current?.getPositionVector3(coords.x, coords.y);
-              console.log('World position:', worldPosition);
-
-
-              ref?.current?.placeText(worldPosition.x, worldPosition.y, worldPosition.z, "#FF0000", "Selected")
-              ref?.current?.placeModel(worldPosition.x, worldPosition.y, worldPosition.z,)
-              // ref?.current?.rotate(0, 0, -90)
-              //   setPos1(worldPosition)
-
-              //   if (pos1) {
-              //     //@ts-ignore
-              //     const distance = await ref?.current?.createLineAndGetDistance(pos1, worldPosition, "#FF0000");
-              //     console.log("🚀 ~ ArView ~ distance:", distance)
-              //     setPos1(undefined)
-
-              //   } else {
-              //     //@ts-ignore
-              //     ref?.current?.placeText(worldPosition.x, worldPosition.y, worldPosition.z, "#FF0000", "Selected")
-              //   }
-
-            } catch (error) {
-              console.log('Failed to get position:', error);
-            }
-          }}
+            
+                    console.log('tap coordinates:', e?.nativeEvent)
+                    const coords = e?.nativeEvent.coordinates;
+                    try {
+                      const worldPosition = await ref?.current?.getPositionVector3(coords.x, coords.y);
+                      ref?.current?.placeText(worldPosition.x, worldPosition.y, worldPosition.z, "#FF0000", "Selected")
+                      console.log('World position:', worldPosition);
+                    //   setPos1(worldPosition)
+            
+                    //   if (pos1) {
+                    //     //@ts-ignore
+                    //     const distance = await ref?.current?.createLineAndGetDistance(pos1, worldPosition, "#FF0000");
+                    //     console.log("🚀 ~ ArView ~ distance:", distance)
+                    //     setPos1(undefined)
+            
+                    //   } else {
+                    //     //@ts-ignore
+                    //     ref?.current?.placeText(worldPosition.x, worldPosition.y, worldPosition.z, "#FF0000", "Selected")
+                    //   }
+            
+                    } catch (error) {
+                      console.log('Failed to get position:', error);
+                    }
+                  }}
         />
       )}
       <View style={styles.footer}>

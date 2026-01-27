@@ -178,7 +178,7 @@ export class ArViewerView extends Component<
     // We create a promise here that will be resolved once `_onRequestDone` is
     // called.
     let promise = new Promise<string>(function (resolve, reject) {
-      requestMap.set(requestId, { resolve: resolve, reject: reject });
+      requestMap.set(requestId, { resolve: (e) => { if (Platform.OS === 'ios') resolve(e); else resolve(JSON.parse(e)); }, reject: reject });
     });
 
     // Now just dispatch the command as before, adding the request ID to the
@@ -243,8 +243,9 @@ export class ArViewerView extends Component<
         [x, y, z]
       );
   }
-  
+
   placeText(x: number, y: number, z: number, color: string, text: string) {
+    console.log("Params: ", [x, y, z, color, text]);
     this.nativeRef.current &&
       UIManager.dispatchViewManagerCommand(
         findNodeHandle(this.nativeRef.current as unknown as number),
@@ -265,7 +266,7 @@ export class ArViewerView extends Component<
     // We create a promise here that will be resolved once `_onRequestDone` is
     // called.
     let promise = new Promise<any>(function (resolve, reject) {
-      requestMap.set(requestId, { resolve: resolve, reject: reject });
+      requestMap.set(requestId, { resolve: (e) => { if (Platform.OS === 'ios') resolve(e); else resolve(JSON.parse(e)); }, reject: reject });
     });
 
     // Now just dispatch the command as before, adding the request ID to the
@@ -287,7 +288,7 @@ export class ArViewerView extends Component<
     // We create a promise here that will be resolved once `_onRequestDone` is
     // called.
     let promise = new Promise<string>(function (resolve, reject) {
-      requestMap.set(requestId, { resolve: resolve, reject: reject });
+      requestMap.set(requestId, { resolve: (e) => { if (Platform.OS === 'ios') resolve(e); else resolve(JSON.parse(e)); }, reject: reject });
     });
 
     // Now just dispatch the command as before, adding the request ID to the

@@ -16,6 +16,11 @@ class ArViewerViewManager : SimpleViewManager<ArViewerView>() {
     const val COMMAND_SNAPSHOT = 1
     const val COMMAND_RESET = 2
     const val COMMAND_ROTATE_MODEL = 3
+    const val COMMAND_LOAD_MODEL = 4
+    const val COMMAND_PLACE_MODEL = 5
+    const val COMMAND_PLACE_TEXT = 6
+    const val COMMAND_GET_POSITION_VECTOR3 = 7
+    const val COMMAND_CREATE_LINE_AND_GET_DISTANCE = 8
   }
 
   /**
@@ -44,11 +49,18 @@ class ArViewerViewManager : SimpleViewManager<ArViewerView>() {
    * Map the commands to an integer
    */
   override fun getCommandsMap(): Map<String, Int>? {
-    return MapBuilder.of(
-      "takeScreenshot", COMMAND_SNAPSHOT,
-      "reset", COMMAND_RESET,
-      "rotateModel", COMMAND_ROTATE_MODEL
+    val map = mutableMapOf(
+      "takeScreenshot" to COMMAND_SNAPSHOT,
+      "reset" to COMMAND_RESET,
+      "rotateModel" to COMMAND_ROTATE_MODEL,
+      "loadModel" to COMMAND_LOAD_MODEL,
+      "placeModel" to COMMAND_PLACE_MODEL,
+      "placeText" to COMMAND_PLACE_TEXT,
+      "getPositionVector3" to COMMAND_GET_POSITION_VECTOR3,
+      "createLineAndGetDistance" to COMMAND_CREATE_LINE_AND_GET_DISTANCE
     )
+
+    return map
   }
 
   /**
@@ -57,6 +69,7 @@ class ArViewerViewManager : SimpleViewManager<ArViewerView>() {
   override fun receiveCommand(view: ArViewerView, commandId: Int, @Nullable args: ReadableArray?) {
     super.receiveCommand(view, commandId, args)
     Log.d("ARview receiveCommand", commandId.toString())
+
     when (commandId) {
       COMMAND_SNAPSHOT -> {
         if (args != null) {
@@ -75,6 +88,48 @@ class ArViewerViewManager : SimpleViewManager<ArViewerView>() {
           view.rotateModel(pitch, yaw, roll)
         }
       }
+      COMMAND_LOAD_MODEL -> {
+        view.loadModelManually()
+      }
+      COMMAND_PLACE_MODEL -> {
+        if (args != null) {
+          val x = args.getDouble(0).toFloat()
+          val y = args.getDouble(1).toFloat()
+          val z = args.getDouble(2).toFloat()
+          view.placeModelAtPosition(x, y, z)
+        }
+      }
+      COMMAND_PLACE_TEXT -> {
+        if (args != null) {
+          val x = args.getDouble(0).toFloat()
+          val y = args.getDouble(1).toFloat()
+          val z = args.getDouble(2).toFloat()
+          val color = args.getString(3) ?: "#FFFFFF"
+          val text = args.getString(4) ?: ""
+          view.placeText(x, y, z, color, text)
+        }
+      }
+      COMMAND_GET_POSITION_VECTOR3 -> {
+        if (args != null) {
+          val x = args.getDouble(0).toFloat()
+          val y = args.getDouble(1).toFloat()
+          val requestId = args.getInt(2)
+          view.getPositionVector3(x, y, requestId)
+        }
+      }
+      COMMAND_CREATE_LINE_AND_GET_DISTANCE -> {
+        if (args != null) {
+          val x1 = args.getDouble(0).toFloat()
+          val y1 = args.getDouble(1).toFloat()
+          val z1 = args.getDouble(2).toFloat()
+          val x2 = args.getDouble(3).toFloat()
+          val y2 = args.getDouble(4).toFloat()
+          val z2 = args.getDouble(5).toFloat()
+          val color = args.getString(6) ?: "#FFFFFF"
+          val requestId = args.getInt(7)
+          view.createLineAndGetDistance(x1, y1, z1, x2, y2, z2, color, requestId)
+        }
+      }
     }
   }
 
@@ -88,7 +143,8 @@ class ArViewerViewManager : SimpleViewManager<ArViewerView>() {
       "onStarted", MapBuilder.of("registrationName","onStarted"),
       "onEnded", MapBuilder.of("registrationName","onEnded"),
       "onModelPlaced", MapBuilder.of("registrationName","onModelPlaced"),
-      "onModelRemoved", MapBuilder.of("registrationName","onModelRemoved")
+      "onModelRemoved", MapBuilder.of("registrationName","onModelRemoved"),
+      "onUserTap", MapBuilder.of("registrationName","onUserTap")
     )
   }
 
